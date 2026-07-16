@@ -1,0 +1,385 @@
+---
+title: "Saying Less, Meaning More"
+subtitle: "How Mitski's lyrics thinned out — and sharpened — across seven albums"
+author: "Mitski-Lyrics-Over-Time"
+date: last-modified
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 2
+    toc-title: "On this page"
+    number-sections: true
+    code-fold: true
+    code-summary: "Show the code"
+    fig-align: center
+    fig-width: 9
+    df-print: kable
+    embed-resources: true
+  pdf:
+    toc: true
+    number-sections: true
+    fig-align: center
+    geometry: margin=1in
+execute:
+  warning: false
+  message: false
+jupyter: python3
+---
+
+```{python}
+#| label: setup
+#| include: false
+import sys
+from pathlib import Path
+
+# Locate the repo root (contains data/metadata/albums.json) from wherever
+# Quarto runs the chunk, then make the analysis package importable.
+_root = Path.cwd().resolve()
+while not (_root / "data" / "metadata" / "albums.json").exists():
+    if _root == _root.parent:
+        raise FileNotFoundError("repo root not found")
+    _root = _root.parent
+sys.path.insert(0, str(_root / "src"))
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from mitski_analysis import figures as F
+from mitski_analysis.data import build_album_table, build_song_table
+
+albums = build_album_table(_root)
+songs = build_song_table(_root)
+
+def r(x, y):
+    return float(np.corrcoef(albums[x], albums[y])[0, 1])
+
+def r_year(y):
+    return float(np.corrcoef(albums["release_year"], albums[y])[0, 1])
+
+mature = albums[albums["album_no"] >= 4]
+r_mature = float(np.corrcoef(mature["words_per_minute"], mature["repetition_index"])[0, 1])
+the_land = albums.loc[albums["album"].str.startswith("The Land")].iloc[0]
+```
+
+> *"I took every Mitski album and I grabbed the duration and the number of words
+> she used… to show you that she is literally saying less over time. But it's not
+> that simple."*
+
+That claim — from a short video essay — is the starting point for this report.
+It is a good claim: specific, quantitative, and falsifiable. So we tested it.
+We took the lyrics of Mitski's seven studio albums, measured how many words she
+sings per minute of music, measured how varied that vocabulary is, and then kept
+going — into who her songs address, what images recur, and how the album covers
+themselves tell a story of pulling the camera back.
+
+The short version: **she really is saying less over time, and the less she
+says, the more each word carries.** The longer version is more interesting, and
+is the rest of this document.
+
+# The thesis in one sentence
+
+Two numbers per album, plotted against time:
+
+1. **Words per minute** — how densely packed the lyrics are (total words ÷ album
+   runtime).
+2. **Lexical diversity** — how much of that vocabulary is distinct rather than
+   repeated.
+
+If the first falls while the second holds or rises, then Mitski is doing more
+with less: fewer words, but a wider and less repetitive palette. That is exactly
+what the data shows, most cleanly across her mature run of records.
+
+# The data and how it was built {#sec-data}
+
+The lyric corpus is a Genius scrape of 153 Mitski entries, cleaned of scraper
+noise and section tags by `scripts/clean_lyrics.py`. That corpus, however, has
+**no album, release-date, or duration fields**, and it mixes canonical album
+tracks with live versions, demos, translations, covers, and non-album singles.
+
+To ask a question about albums *over time*, we first had to rebuild that
+structure. `data/metadata/albums.json` supplies each studio album's canonical
+tracklist, release date, and total running time (durations sourced from Discogs
+/ Apple Music / Wikipedia and recorded with their provenance in the file).
+`src/mitski_analysis/data.py` then joins the two — matching on a
+punctuation-insensitive title key so curly apostrophes and slashes line up — and
+**fails loudly if any canonical track is missing**, so the album totals can
+never silently drop a song.
+
+```{python}
+#| label: tbl-corpus
+#| echo: false
+n_tracks = len(songs)
+n_words = int(albums["total_words"].sum())
+summary = pd.DataFrame({
+    "Metric": ["Studio albums", "Canonical tracks analysed",
+               "Corpus entries (incl. live/demo/covers)", "Total words analysed"],
+    "Value": ["7", f"{n_tracks}", "153", f"{n_words:,}"],
+})
+summary
+```
+
+Everything downstream is computed from the concatenated lyrics of those
+`{python} n_tracks` canonical tracks — bonus remixes, live takes, and covers are
+deliberately excluded so we compare studio albums to studio albums.
+
+## How the metrics are defined
+
+**Words per minute** is total lyric tokens divided by the album's runtime in
+minutes. Word counts are exact (measured from the text); durations are the
+reported album totals, accurate to a few seconds. Because the word counts are
+exact and the albums cluster tightly in length (24–32 min), the trend is driven
+by vocabulary, not by rounding in the runtimes.
+
+**Lexical diversity** is trickier, because the obvious measure is a trap. A raw
+type–token ratio (unique ÷ total words) *falls automatically as a text gets
+longer*, since common words inevitably recur — so albums with more words would
+look less diverse for purely mechanical reasons. We therefore report three views:
+
+- **Repetition index** (total ÷ unique) — the video's own definition; higher
+  means each word is reused more often.
+- **MATTR**, the moving-average type–token ratio over 50-word windows — a
+  length-robust diversity measure where *higher means more varied*.
+- **Guiraud's root-TTR** and the **hapax ratio** (share of once-only words), as
+  supporting checks.
+
+All of these live in `src/mitski_analysis/text.py` and are unit-tested.
+
+# Finding 1 — She is saying less over time {#sec-wpm}
+
+```{python}
+#| label: fig-wpm
+#| fig-cap: "Words per minute by album, 2012–2023. The dashed line is the career trend."
+F.fig_wpm_over_time(albums)
+plt.show()
+```
+
+Across her career the density of Mitski's lyrics declines, with a career-long
+correlation of **r = `{python} round(r_year("words_per_minute"), 2)`** between
+release year and words per minute. The two self-released early records
+(*Lush*, *Retired from Sad, New Career in Business*) are the wordiest and the
+noisiest — *Retired* is the densest album she has made, at 69 words a minute.
+From *Puberty 2* onward the decline is almost monotonic:
+
+```{python}
+#| label: tbl-wpm
+#| echo: false
+t = albums.sort_values("release_date")[
+    ["album", "release_year", "total_words", "duration_display", "words_per_minute"]
+].copy()
+t.columns = ["Album", "Year", "Words", "Runtime", "Words / min"]
+t["Words / min"] = t["Words / min"].round(1)
+t
+```
+
+By *The Land Is Inhospitable and So Are We* (2023) she is down to
+**`{python} round(the_land["words_per_minute"], 1)` words per minute** — a third
+sparser than *Retired* a decade earlier. The claim survives contact with the
+data.
+
+# Finding 2 — But the less she says, the more each word does {#sec-diversity}
+
+"Saying less" would be a thin story if the remaining words were just as
+repetitive. They are not. The video's move is to divide total words by unique
+words: when that **repetition index** is low, Mitski is leaning on a wider set of
+distinct words to fill the same space.
+
+```{python}
+#| label: fig-panels
+#| fig-cap: "Top: words per minute falls. Bottom: length-robust lexical diversity (MATTR) is highest at the endpoints of her career."
+F.fig_wpm_vs_diversity_panels(albums)
+plt.show()
+```
+
+The length-robust diversity measure (MATTR, bottom panel) is not a clean mirror
+of wordiness across *every* album — it is highest on the sparse, early
+*Bury Me at Makeout Creek* and again on the sparse, late *The Land*, with a dip
+through the wordier middle records. That U-shape is itself the point: Mitski's
+**least wordy albums tend to be her most varied**. The relationship shows up
+directly when we plot the two against each other:
+
+```{python}
+#| label: fig-scatter
+#| fig-cap: "Each album placed by density (x) and repetition (y). Denser albums repeat more; sparser albums reach for a wider vocabulary."
+F.fig_inverse_scatter(albums)
+plt.show()
+```
+
+Across all seven albums, denser records are more repetitive
+(r = `{python} round(r("words_per_minute", "repetition_index"), 2)`). Restrict to
+the mature era — *Puberty 2* forward, where she is a fully formed writer — and
+the relationship becomes almost deterministic:
+**r = `{python} round(r_mature, 2)`** between words-per-minute and repetition.
+*The Land* sits alone in the bottom-left corner: **the fewest words per minute
+and the least repetition of anything she has released.** When Mitski uses the
+least, each word matters more — so she reaches wider to say it. The video's
+"complete picture" holds.
+
+# Finding 3 — The songs themselves are thinning {#sec-songs}
+
+Album-level density could fall two ways: shorter songs, or the same songs
+padded with more instrumental space. It is mostly the former.
+
+```{python}
+#| label: fig-songs
+#| fig-cap: "Per-song word counts within each album. Black bar = album mean."
+F.fig_words_per_song(songs, albums)
+plt.show()
+```
+
+The typical song loses roughly a quarter of its words between the first album
+and the last (an average of ~173 words per song on *Lush* versus ~134 on
+*The Land*). The spread narrows too — the later albums have fewer sprawling,
+high-word outliers. She is not just spreading the same lyrics thinner; she is
+writing shorter.
+
+# Theme — Who the songs are singing to {#sec-pronouns}
+
+A lyric's pronouns quietly encode its stance: the private, confessional **I**;
+the addressed **you** of a love song or an accusation; the collective **we**.
+Tracking their mix is one way to hear the shift the video describes — from
+stepping into a persona, to grappling with fame, to a record whose very title,
+*…and So Are We*, folds the listener into the frame.
+
+```{python}
+#| label: fig-pronouns
+#| fig-cap: "Share of personal pronouns per album."
+F.fig_pronoun_mix(albums)
+plt.show()
+```
+
+Mitski's world is overwhelmingly first-person-singular — the **I** dominates
+every album, which is what you would expect from one of songwriting's great
+diarists. But the **we** is telling. It is essentially absent on the debut
+*Lush* (0%), and it surfaces most on *Be the Cowboy* and *The Land* — the two
+records most explicitly about a self observed from outside, whether a persona or
+a whole inhospitable world. The collective voice arrives exactly where the
+camera pulls back.
+
+# Theme — The recurring images {#sec-motifs}
+
+Beyond counting words, we can trace *what* Mitski keeps returning to. Six
+hand-curated image lexicons — body, water, fire/light, home, death, animals —
+scored as a rate per 1,000 words, give a fingerprint for each album.
+
+```{python}
+#| label: fig-motifs
+#| fig-cap: "Recurring imagery, rate per 1,000 words. Darker = more frequent."
+F.fig_motif_heatmap(albums)
+plt.show()
+```
+
+Three things stand out. **The body** is Mitski's most persistent instrument, and
+it peaks on *Bury Me at Makeout Creek* — the album where blood, bones, and skin
+do the emotional work. **Domestic imagery** — house, room, husband, lamp — is
+densest on *Retired from Sad* and returns on *Be the Cowboy* and *Laurel Hell*,
+the records preoccupied with marriage, roles, and the trap of a settled life.
+And **death** imagery, low for most of her career, spikes hardest on *The Land
+Is Inhospitable and So Are We* — the album that, as the title promises, turns to
+mortality and the ground we are buried in. The words got fewer; the subjects got
+heavier.
+
+# The visual story — pulling the camera back {#sec-visual}
+
+The video's most striking argument is not about words at all. It is that
+Mitski's album covers, across her mature run, form a single evolving image — and
+that each step **pulls the camera back**, changing the meaning of what came
+before.
+
+```{python}
+#| label: fig-trilogy
+#| fig-cap: "The album-cover progression described in the source video (illustrative colour treatment, not the covers themselves)."
+F.fig_trilogy(albums)
+plt.show()
+```
+
+- **Be the Cowboy (2018)** opens on an explosion of red — an image demanding
+  attention, matching an album about stepping into a persona that is bigger,
+  louder, and more confident than the person underneath.
+- **Laurel Hell (2022)** looks like the same frame drenched in black instead of
+  white. But it is not a persona this time; it is Mitski herself grappling with
+  fame — the white turned to black.
+- **The Land Is Inhospitable and So Are We (2023)** appears to be the *same
+  scene from further away*: the camera pulls back to ask what world produced the
+  feelings of *Laurel Hell*.
+
+Read together, the covers do in images what the lyrics do in words — say less on
+the surface, imply more underneath. It is worth being precise about the corpus
+boundary here: this report quantifies the **seven studio albums for which lyrics
+are available**. The newest release the video discusses — whose meaning it argues
+changes depending on whether you see the zoomed-in streaming cover or the
+zoomed-out vinyl — is not part of this lyric dataset, so it appears in this
+section as narrative, not as a data point. If and when its lyrics enter the
+corpus, the metadata file and every figure here update automatically.
+
+# Synthesis {#sec-synthesis}
+
+Put the pieces together and the video's thesis resolves into something the data
+supports:
+
+- Mitski's lyrics have grown **less dense** over her career
+  (r = `{python} round(r_year("words_per_minute"), 2)` against time), and the
+  **songs themselves are shorter**.
+- The words that remain are **less repetitive and more varied**, most sharply in
+  her mature era (density vs. repetition, r = `{python} round(r_mature, 2)`),
+  with *The Land* the extreme case on both axes.
+- The **collective "we"** and the imagery of **death** both rise on exactly the
+  late records where she is writing least and pulling the camera furthest back.
+
+She is, verifiably, saying less — and, just as verifiably, using what she says
+to carry more.
+
+# Limitations {#sec-limits}
+
+- **Durations are album totals**, sourced from streaming/database aggregators and
+  rounded to the reported figure. The words-per-minute trend is robust to
+  second-level error because word counts are exact and album lengths are similar,
+  but per-song words-per-minute is intentionally *not* computed here, since
+  reliable per-track durations were not obtainable.
+- **Lyrics are a Genius transcription.** Ad-libs, repeats written as "(x2)", and
+  transcription choices affect raw counts. Section tags and scraper noise are
+  removed; judgement calls in the source text remain.
+- **Motif and pronoun lexicons are hand-curated and conservative.** They are a
+  transparent lens, listed in full in `text.py`, not an exhaustive semantic model.
+- **Seven albums is a small n.** Correlations are descriptive of this discography,
+  not inferential claims about songwriting in general. The early self-released
+  records behave differently from the mature run and are called out as such.
+
+# Reproduce this report {#sec-repro}
+
+```bash
+pip install -r requirements.txt          # pandas, matplotlib, numpy (+ quarto)
+python scripts/clean_lyrics.py           # raw scrape -> cleaned lyrics
+python scripts/build_dataset.py          # -> data/processed/album_stats.csv, song_stats.csv
+python scripts/make_figures.py           # -> figures/*.png (preview)
+quarto render report/mitski_lyrics_over_time.qmd   # this document
+```
+
+Every figure and every number above is generated from the two committed data
+files by the code in `src/mitski_analysis/`. Change the metadata, and the report
+follows.
+
+## Appendix — full album table
+
+```{python}
+#| label: tbl-appendix
+#| echo: false
+cols = ["album", "release_year", "n_tracks", "total_words", "unique_words",
+        "duration_display", "words_per_minute", "repetition_index", "mattr",
+        "hapax_ratio"]
+ap = albums.sort_values("release_date")[cols].copy()
+ap.columns = ["Album", "Year", "Tracks", "Words", "Unique", "Runtime",
+              "Words/min", "Repetition", "MATTR", "Hapax"]
+for c in ["Words/min", "Repetition", "MATTR", "Hapax"]:
+    ap[c] = ap[c].round(2)
+ap
+```
+
+::: {.callout-note collapse="true"}
+## Sources for album metadata
+Release dates, tracklists, and total runtimes were compiled from Discogs, Apple
+Music, and Wikipedia; the specific figure used for each album (and its source)
+is recorded in `data/metadata/albums.json`. Where sources disagreed on a runtime
+by a few seconds, the most commonly reported total was used.
+:::

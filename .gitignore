@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# Generated preview figures (regenerate with scripts/make_figures.py).
+/figures/
+
+# Generated analysis tables (regenerate with scripts/build_dataset.py).
+/data/processed/*.csv
+
+# Quarto render output
+/report/*.html
+/report/*.pdf
+/report/*_files/
+/.quarto/
+
+# OS
+.DS_Store

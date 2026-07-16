@@ -1,0 +1,10 @@
+# Analysis + report dependencies.
+# The report is a Quarto (.qmd) document; rendering it also requires the Quarto
+# CLI (https://quarto.org) and a Jupyter kernel, which are installed separately
+# from pip:  pip install jupyter  &&  install Quarto from quarto.org.
+pandas>=2.0
+numpy>=1.24
+matplotlib>=3.7
+
+# For running the tests:
+pytest>=7.0

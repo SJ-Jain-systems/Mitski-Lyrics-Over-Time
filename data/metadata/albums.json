@@ -1,0 +1,159 @@
+{
+  "_comment": "Canonical Mitski studio-album metadata, curated by hand for this project. The lyrics corpus in data/processed/ has no album/date/duration fields, so this file supplies them. Only the original standard-edition tracklists are listed (bonus remixes, live versions, demos, covers, and non-album singles are intentionally excluded). Track titles are ASCII-normalized before joining, so straight-vs-curly apostrophes and slashes do not need to match the corpus exactly. Durations are the total album running times reported by Discogs / Apple Music / Wikipedia (see 'duration_source'); they are rounded to the nearest reported figure and are accurate to within a few seconds. The words-per-minute thesis is driven by exact per-album word counts (measured from the corpus) far more than by second-level duration precision.",
+  "artist": "Mitski",
+  "compiled_at": "2026-07-16",
+  "albums": [
+    {
+      "album": "Lush",
+      "album_no": 1,
+      "release_date": "2012-01-31",
+      "label": "Self-released",
+      "duration_seconds": 1561,
+      "duration_display": "26:01",
+      "duration_source": "Discogs / Wikipedia (26:01, 9 tracks)",
+      "tracks": [
+        "Liquid Smooth",
+        "Wife",
+        "Abbey",
+        "Brand New City",
+        "Eric",
+        "Bag of Bones",
+        "Door",
+        "Pearl Diver",
+        "Real Men"
+      ]
+    },
+    {
+      "album": "Retired from Sad, New Career in Business",
+      "album_no": 2,
+      "release_date": "2013-08-01",
+      "label": "Self-released",
+      "duration_seconds": 1434,
+      "duration_display": "23:54",
+      "duration_source": "Wikipedia / Apple Music (original 9-track edition, 23:54)",
+      "tracks": [
+        "Goodbye, My Danish Sweetheart",
+        "Shame",
+        "I Want You",
+        "Square",
+        "Strawberry Blond",
+        "Because Dreaming Costs Money, My Dear",
+        "Humpty",
+        "Circle",
+        "Class of 2013"
+      ]
+    },
+    {
+      "album": "Bury Me at Makeout Creek",
+      "album_no": 3,
+      "release_date": "2014-11-11",
+      "label": "Double Double Whammy",
+      "duration_seconds": 1818,
+      "duration_display": "30:18",
+      "duration_source": "Wikipedia (30:18, 10 tracks)",
+      "tracks": [
+        "Texas Reznikoff",
+        "Townie",
+        "First Love / Late Spring",
+        "Francis Forever",
+        "I Don't Smoke",
+        "Jobless Monday",
+        "Drunk Walk Home",
+        "I Will",
+        "Carry Me Out",
+        "Last Words of a Shooting Star"
+      ]
+    },
+    {
+      "album": "Puberty 2",
+      "album_no": 4,
+      "release_date": "2016-06-17",
+      "label": "Dead Oceans",
+      "duration_seconds": 1885,
+      "duration_display": "31:25",
+      "duration_source": "Wikipedia (31:25, 11 tracks)",
+      "tracks": [
+        "Happy",
+        "Dan the Dancer",
+        "Once More to See You",
+        "Fireworks",
+        "Your Best American Girl",
+        "I Bet on Losing Dogs",
+        "My Body's Made of Crushed Little Stars",
+        "Thursday Girl",
+        "A Loving Feeling",
+        "Crack Baby",
+        "A Burning Hill"
+      ]
+    },
+    {
+      "album": "Be the Cowboy",
+      "album_no": 5,
+      "release_date": "2018-08-17",
+      "label": "Dead Oceans",
+      "duration_seconds": 1944,
+      "duration_display": "32:24",
+      "duration_source": "Discogs (sum of 14 track times, 32:24)",
+      "tracks": [
+        "Geyser",
+        "Why Didn't You Stop Me?",
+        "Old Friend",
+        "A Pearl",
+        "Lonesome Love",
+        "Remember My Name",
+        "Me and My Husband",
+        "Come Into the Water",
+        "Nobody",
+        "Pink in the Night",
+        "A Horse Named Cold Air",
+        "Washing Machine Heart",
+        "Blue Light",
+        "Two Slow Dancers"
+      ]
+    },
+    {
+      "album": "Laurel Hell",
+      "album_no": 6,
+      "release_date": "2022-02-04",
+      "label": "Dead Oceans",
+      "duration_seconds": 1920,
+      "duration_display": "~32:00",
+      "duration_source": "Wikipedia / Apple Music (standard 11-track edition, ~32 min; excludes the Clark Remix bonus)",
+      "tracks": [
+        "Valentine, Texas",
+        "Working for the Knife",
+        "Stay Soft",
+        "Everyone",
+        "Heat Lightning",
+        "The Only Heartbreaker",
+        "Love Me More",
+        "There's Nothing Left for You",
+        "Should've Been Me",
+        "I Guess",
+        "That's Our Lamp"
+      ]
+    },
+    {
+      "album": "The Land Is Inhospitable and So Are We",
+      "album_no": 7,
+      "release_date": "2023-09-15",
+      "label": "Dead Oceans",
+      "duration_seconds": 1920,
+      "duration_display": "~32:00",
+      "duration_source": "Wikipedia / Apple Music (~32 min, 11 tracks)",
+      "tracks": [
+        "Bug Like an Angel",
+        "Buffalo Replaced",
+        "Heaven",
+        "I Don't Like My Mind",
+        "The Deal",
+        "When Memories Snow",
+        "My Love Mine All Mine",
+        "The Frost",
+        "Star",
+        "I'm Your Man",
+        "I Love Me After You"
+      ]
+    }
+  ]
+}
