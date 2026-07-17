@@ -5,7 +5,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from mitski_analysis.data import build_album_table, build_song_table, load_album_metadata
+from mitski_analysis.data import (
+    build_album_table,
+    build_distinctive_table,
+    build_song_table,
+    load_album_metadata,
+)
 
 
 def test_all_canonical_tracks_resolve():
@@ -40,6 +45,21 @@ def test_repetition_index_matches_definition():
     albums = build_album_table()
     row = albums.iloc[0]
     assert abs(row["repetition_index"] - row["total_words"] / row["unique_words"]) < 1e-9
+
+
+def test_mean_valence_column_present_and_bounded():
+    albums = build_album_table()
+    assert "mean_valence" in albums.columns
+    # AFINN scores span -5..+5; album means must sit well inside that range.
+    assert (albums["mean_valence"].abs() < 5).all()
+
+
+def test_distinctive_table_one_row_per_album_with_words():
+    d = build_distinctive_table(n=6)
+    assert len(d) == 7
+    # Each album gets a non-empty, comma-joined word list of the requested size.
+    for words in d["words"]:
+        assert words and len(words.split(", ")) == 6
 
 
 if __name__ == "__main__":

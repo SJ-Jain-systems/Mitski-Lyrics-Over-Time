@@ -242,7 +242,52 @@ def fig_motif_heatmap(albums: pd.DataFrame):
 
 
 # --------------------------------------------------------------------------- #
-# 7. The visual "trilogy" colour story (qualitative, from the source video)
+# 7. Emotional valence over time (AFINN word-level sentiment)
+# --------------------------------------------------------------------------- #
+def fig_valence_over_time(albums: pd.DataFrame):
+    fig, ax = TH.new_fig(9.0, 5.0)
+    order = albums.sort_values("release_date")
+    x = order["release_date"]
+    y = order["mean_valence"]
+
+    # A neutral reference so "above / below the line" reads as positive /
+    # negative, and a single connecting line for the time trend.
+    ax.axhline(0, color=TH.BASELINE, lw=1.2, zorder=1)
+    ax.plot(x, y, color=TH.MUTED, lw=1.6, zorder=2)
+
+    # Colour each point by sign: warm for negative, cool for positive. Two
+    # categorical slots, assigned by meaning, not cycled.
+    pos = y >= 0
+    ax.scatter(x[pos], y[pos], s=80, color=TH.BLUE, edgecolor=TH.SURFACE,
+               linewidth=1.5, zorder=3)
+    ax.scatter(x[~pos], y[~pos], s=80, color=TH.ORANGE, edgecolor=TH.SURFACE,
+               linewidth=1.5, zorder=3)
+
+    # Label above each point, except the two near the ceiling (which would
+    # collide with the title), so no label crowds the x-axis.
+    hi = y.max()
+    for _, row in order.iterrows():
+        near_top = row["mean_valence"] >= hi - 0.05
+        ax.annotate(
+            SHORT_INLINE[row["album"]],
+            (row["release_date"], row["mean_valence"]),
+            textcoords="offset points", xytext=(0, -16 if near_top else 10),
+            ha="center", va="top" if near_top else "bottom",
+            fontsize=8.2, color=TH.INK_2,
+        )
+
+    ax.set_ylabel("Mean word valence  (AFINN, negative ↔ positive)")
+    ax.set_xlabel("Album release")
+    ax.set_title("Average word sentiment barely tracks the mood of the records")
+    ax.annotate("more positive words →", xy=(0.02, 0.93), xycoords="axes fraction",
+                fontsize=9, color=TH.MUTED)
+    ax.annotate("more negative words →", xy=(0.02, 0.06), xycoords="axes fraction",
+                fontsize=9, color=TH.MUTED)
+    return fig
+
+
+# --------------------------------------------------------------------------- #
+# 8. The visual "trilogy" colour story (qualitative, from the source video)
 # --------------------------------------------------------------------------- #
 def fig_trilogy(albums: pd.DataFrame):
     TH.apply()
@@ -268,7 +313,7 @@ def fig_trilogy(albums: pd.DataFrame):
             arr = FancyArrowPatch((i + 0.93, 0.74), (i + 1.07, 0.74),
                                   arrowstyle="-|>", mutation_scale=14, color=TH.MUTED, lw=1.6)
             ax.add_patch(arr)
-    ax.text(1.5, 1.16, "One image, three times — each album pulls the camera back",
+    ax.text(1.5, 1.16, "One image, three times. Each album pulls the camera back",
             ha="center", va="center", fontsize=11, fontweight="bold", color=TH.INK)
     fig.tight_layout()
     return fig

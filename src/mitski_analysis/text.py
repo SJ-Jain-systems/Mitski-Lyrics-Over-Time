@@ -18,6 +18,7 @@ import math
 import re
 import unicodedata
 from collections import Counter
+from pathlib import Path
 from typing import Iterable
 
 # Word token: a run of letters, allowing internal straight apostrophes so
@@ -168,3 +169,136 @@ def pronoun_counts(text: str) -> dict[str, int]:
         group: sum(counts[w] for w in words)
         for group, words in PRONOUNS.items()
     }
+
+
+# --- Distinctive words (keyness) -------------------------------------------
+# Which words most set one album apart from the rest of the discography? Raw
+# frequency answers the wrong question (it just surfaces "the", "you", "and"),
+# and a plain ratio over-rewards words that appear once or twice. The weighted
+# log-odds ratio with an informative Dirichlet prior (Monroe, Colaresi & Quinn,
+# 2008) is the standard fix: it compares a word's rate in the target text to its
+# rate in a background corpus, smooths both toward the pooled distribution, and
+# divides by an estimated standard error so rare-word noise is damped. The
+# result is a z-like score; positive means "more characteristic of the target".
+
+# A small, transparent function-word list so the distinctive-word ranking
+# surfaces content, not grammar. Hand-curated in the same spirit as the motif
+# lexicons: short, legible, and easy to audit rather than an exhaustive list.
+# It also drops two kinds of transcription noise that would otherwise rank as
+# "distinctive": song-structure tags that survive cleaning ("[Verse: Mitski &
+# Choir]" tokenizes to verse/mitski/choir) and sung vocables ("doo", "ra").
+STOPWORDS: set[str] = {
+    # function words
+    "a", "an", "and", "as", "at", "be", "been", "but", "by", "do", "for",
+    "from", "had", "has", "have", "he", "her", "him", "his", "i", "i'm",
+    "i'll", "i've", "i'd", "if", "in", "is", "it", "it's", "its", "me", "my",
+    "no", "not", "of", "oh", "on", "or", "our", "out", "she", "so", "than",
+    "that", "that's", "the", "their", "them", "then", "there", "they", "this",
+    "to", "up", "us", "was", "we", "we're", "were", "what", "what'd", "when",
+    "who", "will", "with", "would", "you", "you're", "you'll", "you've",
+    "you'd", "your", "yours", "am", "are", "'cause", "cause", "just", "all",
+    "like", "get", "got", "can", "could", "now", "yeah", "where", "don't",
+    "gonna", "wanna", "gotta", "again", "more", "only", "very", "really",
+    # structural transcription tags (survive cleaning as bare tokens)
+    "verse", "chorus", "prechorus", "pre", "post", "bridge", "intro", "outro",
+    "hook", "refrain", "interlude", "mitski", "choir", "prod", "feat", "ft",
+    # sung vocables
+    "la", "na", "ooh", "ah", "mm", "doo", "ra", "da", "dum", "ba", "hey",
+    "woah", "whoa", "oo", "uh", "ooo", "ahh",
+}
+
+
+def word_counts(text: str) -> Counter:
+    """Token frequency map for ``text`` (reuses the shared tokenizer)."""
+    return Counter(tokenize(text))
+
+
+def distinctive_words(
+    target_counts: Counter,
+    background_counts: Counter,
+    n: int = 10,
+    stopwords: set[str] | None = STOPWORDS,
+    min_count: int = 2,
+) -> list[tuple[str, float]]:
+    """Return the ``n`` words most distinctive of ``target_counts`` relative to
+    ``background_counts``, scored by weighted log-odds with an informative
+    Dirichlet prior (Monroe, Colaresi & Quinn 2008).
+
+    ``background_counts`` is the pooled rest of the corpus (the target may or may
+    not be included in it; the prior handles both). Words in ``stopwords`` and
+    words occurring fewer than ``min_count`` times in the target are dropped
+    before ranking, so the result reads as content the album is *about*.
+    """
+    if stopwords is None:
+        stopwords = set()
+
+    # Pooled counts form the Dirichlet prior alpha_w; alpha_0 is its total.
+    pooled = Counter()
+    pooled.update(target_counts)
+    pooled.update(background_counts)
+    alpha0 = sum(pooled.values())
+    n_target = sum(target_counts.values())
+    n_bg = sum(background_counts.values())
+    if n_target == 0 or n_bg == 0 or alpha0 == 0:
+        return []
+
+    scores: list[tuple[str, float]] = []
+    for word, y_t in target_counts.items():
+        if word in stopwords or y_t < min_count:
+            continue
+        a_w = pooled[word]  # prior pseudo-count for this word
+        y_b = background_counts.get(word, 0)
+        # Smoothed log-odds in target vs. background.
+        num_t = y_t + a_w
+        num_b = y_b + a_w
+        den_t = n_target + alpha0 - num_t
+        den_b = n_bg + alpha0 - num_b
+        delta = math.log(num_t / den_t) - math.log(num_b / den_b)
+        var = 1.0 / num_t + 1.0 / num_b
+        scores.append((word, delta / math.sqrt(var)))
+
+    scores.sort(key=lambda kv: kv[1], reverse=True)
+    return scores[:n]
+
+
+# --- Valence (sentiment) ---------------------------------------------------
+# Mean emotional valence per lyric, from a bundled word->score lexicon (AFINN).
+# The lexicon is a flat, human-readable file under ``data/lexicons/`` so the
+# scoring stays transparent and fully offline, matching the project's use of
+# small, auditable lexicons elsewhere.
+
+def load_valence_lexicon(root: Path | None = None) -> dict[str, int]:
+    """Load the bundled AFINN valence lexicon (``word<TAB>score`` per line).
+
+    Comment lines (starting with ``#``) and blanks are skipped. ``root`` is the
+    repo root; when omitted the lexicon is located relative to this file.
+    """
+    if root is None:
+        # src/mitski_analysis/text.py -> repo root is two parents up.
+        root = Path(__file__).resolve().parents[2]
+    path = Path(root) / "data" / "lexicons" / "valence_afinn.txt"
+    lexicon: dict[str, int] = {}
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.rstrip("\n")
+            if not line or line.startswith("#"):
+                continue
+            word, _, score = line.partition("\t")
+            word = word.strip()
+            score = score.strip()
+            if word and score:
+                lexicon[normalize(word)] = int(score)
+    return lexicon
+
+
+def mean_valence(text: str, lexicon: dict[str, int]) -> float:
+    """Average valence over the tokens of ``text`` that appear in ``lexicon``.
+
+    Returns 0.0 when no token is scored (or the text is empty), so an album with
+    no lexicon hits reads as neutral rather than undefined.
+    """
+    tokens = tokenize(text)
+    scored = [lexicon[t] for t in tokens if t in lexicon]
+    if not scored:
+        return 0.0
+    return sum(scored) / len(scored)

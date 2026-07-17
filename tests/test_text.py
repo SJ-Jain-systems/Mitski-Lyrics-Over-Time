@@ -4,6 +4,7 @@ Run with:  python -m pytest tests/  (or: python tests/test_text.py)
 """
 
 import sys
+from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
@@ -64,6 +65,60 @@ def test_lexical_summary_keys():
     assert set(s) >= {"tokens", "types", "ttr", "mattr", "guiraud_r",
                       "hapax_ratio", "mean_word_length"}
     assert s["tokens"] == 5 and s["types"] == 3
+
+
+# --- distinctive words -----------------------------------------------------
+
+def test_distinctive_words_favours_target_only_terms():
+    # "moon" appears only in the target; "night" is shared evenly. The target-
+    # only content word should rank above the evenly shared one.
+    target = Counter({"moon": 6, "night": 4, "and": 20})
+    background = Counter({"night": 4, "and": 20, "sun": 6})
+    ranked = T.distinctive_words(target, background, n=5, stopwords={"and"})
+    words = [w for w, _ in ranked]
+    assert "moon" in words
+    assert words[0] == "moon"
+    # "night" is shared evenly, so it scores near zero and below "moon".
+    score = dict(ranked)
+    assert score["moon"] > score.get("night", -1)
+
+
+def test_distinctive_words_respects_stopwords_and_min_count():
+    target = Counter({"moon": 5, "the": 100, "rare": 1})
+    background = Counter({"other": 50})
+    ranked = T.distinctive_words(target, background, n=10,
+                                 stopwords={"the"}, min_count=2)
+    words = [w for w, _ in ranked]
+    assert "the" not in words       # stopword dropped
+    assert "rare" not in words      # below min_count
+    assert "moon" in words
+
+
+def test_distinctive_words_empty_inputs_are_safe():
+    assert T.distinctive_words(Counter(), Counter({"a": 3})) == []
+    assert T.distinctive_words(Counter({"a": 3}), Counter()) == []
+
+
+# --- valence ---------------------------------------------------------------
+
+def test_mean_valence_sign():
+    lex = {"love": 3, "good": 3, "hate": -3, "die": -3}
+    assert T.mean_valence("love and good", lex) > 0
+    assert T.mean_valence("hate and die", lex) < 0
+
+
+def test_mean_valence_ignores_unscored_and_empty():
+    lex = {"love": 3}
+    # Only "love" is scored; the mean of a single +3 hit is 3.0.
+    assert T.mean_valence("love the quiet morning", lex) == 3.0
+    assert T.mean_valence("", lex) == 0.0
+    assert T.mean_valence("no scored words here", lex) == 0.0
+
+
+def test_valence_lexicon_loads_and_scores_corpus_words():
+    lex = T.load_valence_lexicon()
+    assert len(lex) > 1000
+    assert lex["love"] > 0 and lex["hate"] < 0
 
 
 if __name__ == "__main__":

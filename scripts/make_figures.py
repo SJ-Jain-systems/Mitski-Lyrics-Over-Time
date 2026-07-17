@@ -26,7 +26,8 @@ RENDERERS = {
     "04_words_per_song": lambda a, s: F.fig_words_per_song(s, a),
     "05_pronoun_mix": lambda a, s: F.fig_pronoun_mix(a),
     "06_motif_heatmap": lambda a, s: F.fig_motif_heatmap(a),
-    "07_trilogy": lambda a, s: F.fig_trilogy(a),
+    "07_valence_over_time": lambda a, s: F.fig_valence_over_time(a),
+    "08_trilogy": lambda a, s: F.fig_trilogy(a),
 }
 
 

@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import re
 import unicodedata
+from collections import Counter
 from pathlib import Path
 
 import pandas as pd
@@ -117,6 +118,8 @@ def build_album_table(root: Path | None = None) -> pd.DataFrame:
     for song in corpus["songs"]:
         by_key.setdefault(_match_key(song["title"]), song)
 
+    valence_lexicon = T.load_valence_lexicon(root)
+
     rows = []
     for album in meta["albums"]:
         texts = [by_key[_match_key(t)]["lyrics"] for t in album["tracks"]]
@@ -146,6 +149,8 @@ def build_album_table(root: Path | None = None) -> pd.DataFrame:
             "mean_word_length": summary["mean_word_length"],
             # Video's literal definition: total / unique (mean repetition of a word).
             "repetition_index": total_words / summary["types"],
+            # Mean emotional valence of the album's words (AFINN, -5..+5).
+            "mean_valence": T.mean_valence(blob, valence_lexicon),
         }
         total_pron = sum(pron.values()) or 1
         for k, v in pron.items():
@@ -158,6 +163,48 @@ def build_album_table(root: Path | None = None) -> pd.DataFrame:
 
     df = pd.DataFrame(rows).sort_values("release_date").reset_index(drop=True)
     return df
+
+
+def build_distinctive_table(root: Path | None = None, n: int = 8) -> pd.DataFrame:
+    """One row per studio album listing the ``n`` words most distinctive of that
+    album relative to the pooled rest of the discography.
+
+    Each album's lyrics are scored against every other album's lyrics combined,
+    using ``text.distinctive_words`` (weighted log-odds with a Dirichlet prior),
+    so the result surfaces what each record is *about* rather than which words
+    are simply frequent. The ``words`` column is a ready-to-print comma-joined
+    string; ``scored`` keeps the underlying (word, score) pairs.
+    """
+    root = root or repo_root()
+    meta = load_album_metadata(root)
+    corpus = load_corpus(root)
+
+    by_key: dict[str, dict] = {}
+    for song in corpus["songs"]:
+        by_key.setdefault(_match_key(song["title"]), song)
+
+    # Per-album token frequency maps, in release order.
+    albums_meta = sorted(meta["albums"], key=lambda a: a["release_date"])
+    counts_by_album: list[tuple[dict, "object"]] = []
+    for album in albums_meta:
+        blob = "\n".join(by_key[_match_key(t)]["lyrics"] for t in album["tracks"])
+        counts_by_album.append((album, T.word_counts(blob)))
+
+    rows = []
+    for i, (album, target) in enumerate(counts_by_album):
+        background = Counter()
+        for j, (_, other) in enumerate(counts_by_album):
+            if j != i:
+                background.update(other)
+        scored = T.distinctive_words(target, background, n=n)
+        rows.append({
+            "album": album["album"],
+            "album_no": album["album_no"],
+            "release_year": pd.Timestamp(album["release_date"]).year,
+            "words": ", ".join(w for w, _ in scored),
+            "scored": scored,
+        })
+    return pd.DataFrame(rows)
 
 
 if __name__ == "__main__":  # quick smoke check
