@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+mitski_lyrics.json
+data/*.json
