@@ -6,5 +6,9 @@ pandas>=2.0
 numpy>=1.24
 matplotlib>=3.7
 
+# Interactive 3D figures (src/mitski_analysis/figures3d.py, scripts/make_3d.py,
+# and the report's "Explore it in three dimensions" section).
+plotly>=5.20
+
 # For running the tests:
 pytest>=7.0

@@ -48,10 +48,13 @@ src/mitski_analysis/
   data.py      joins lyrics <-> album metadata into tidy tables
   theme.py     matplotlib theme (validated data-viz palette)
   figures.py   the report's figures
+  figures3d.py interactive 3D figures (Plotly): the evolution trajectory,
+               the motif terrain, the per-song cloud, the pronoun trajectory
 scripts/
   clean_lyrics.py     raw scrape -> cleaned lyrics
   build_dataset.py    -> data/processed/*.csv
   make_figures.py     -> figures/*.png
+  make_3d.py          -> figures/3d/*.html  (standalone, interactive)
 report/
   mitski_lyrics_over_time.qmd   # the report
 tests/         unit + integration tests
@@ -63,8 +66,9 @@ tests/         unit + integration tests
 pip install -r requirements.txt
 python scripts/clean_lyrics.py            # (already committed; regenerates cleaned lyrics)
 python scripts/build_dataset.py           # album + song stats
-python scripts/make_figures.py            # preview figures
-python -m pytest tests/                    # 22 tests
+python scripts/make_figures.py            # preview figures (static PNG)
+python scripts/make_3d.py                 # interactive 3D figures -> figures/3d/*.html
+python -m pytest tests/                    # tests
 
 # Render the report (needs the Quarto CLI from quarto.org + a Jupyter kernel):
 quarto render report/mitski_lyrics_over_time.qmd
