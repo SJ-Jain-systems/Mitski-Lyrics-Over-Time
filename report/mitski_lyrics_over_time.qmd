@@ -474,6 +474,60 @@ supports:
 She is, verifiably, saying less. And she is, just as verifiably, using what she
 says to carry more.
 
+# Explore it in three dimensions {#sec-3d}
+
+The findings above each isolate one relationship at a time, on a flat page. But
+the story is really about several axes moving together — density, diversity,
+repetition, imagery, address — so the last word goes to the reader. The figures
+below are **interactive**: drag to rotate, scroll to zoom, hover for values. A
+third spatial axis only helps if you can turn it, so these render as live plots
+rather than frozen pictures. (In the static PDF they appear as a single camera
+angle; open the HTML version to rotate them.)
+
+```{python}
+#| label: setup-3d
+#| include: false
+from mitski_analysis import figures3d as F3
+```
+
+The whole discography as a single **path through "lyric space"** — each album
+placed by how dense it is (words per minute), how wide its vocabulary is
+(MATTR), and how much it repeats itself, with the path coloured light-to-dark
+from her first record to her latest. The early era wanders; the mature era bends
+into the tight density–repetition track the scatter above only hints at.
+
+```{python}
+#| label: fig3d-trajectory
+F3.fig3d_trajectory(albums)
+```
+
+The **recurring imagery as terrain**: the same rates as the heatmap, but with
+height standing in for frequency, so the *death* and *water* ridges that rise on
+the late, sparse albums read as landscape.
+
+```{python}
+#| label: fig3d-terrain
+F3.fig3d_motif_terrain(albums)
+```
+
+Every **individual song** in three dimensions — words, lexical diversity, and
+mean word length — coloured by album. Click an album in the legend to isolate it
+and watch how tightly (or loosely) each record's songs cluster.
+
+```{python}
+#| label: fig3d-cloud
+F3.fig3d_song_cloud(songs, albums)
+```
+
+Finally, **who the songs address**, as a path over time through the shares of
+the private *I*, the *you*, and the collective *we* — the last of which climbs
+on exactly the late records where she pulls the camera back.
+
+```{python}
+#| label: fig3d-pronouns
+F3.fig3d_pronoun_trajectory(albums)
+```
+
 # Limitations {#sec-limits}
 
 - **Durations are album totals**, taken from streaming and database aggregators
