@@ -3,7 +3,7 @@
 All notable changes to this project are documented here. The format loosely
 follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [0.2.0] — HTML visualizations converted to pure Python
+## [0.2.0] HTML visualizations converted to pure Python
 
 ### Changed
 - **The 3D figures are now pure matplotlib instead of Plotly.** They previously
