@@ -127,30 +127,46 @@ def build_album_table(root: Path | None = None) -> pd.DataFrame:
         summary = T.lexical_summary(blob)
         duration_min = album["duration_seconds"] / 60.0
         total_words = summary["tokens"]
+        n_tracks = len(album["tracks"])
         pron = T.pronoun_counts(blob)
         motif = T.motif_counts(blob)
+        vstats = T.valence_stats(blob, valence_lexicon)
         row = {
             "album": album["album"],
             "album_no": album["album_no"],
             "release_date": pd.Timestamp(album["release_date"]),
             "release_year": pd.Timestamp(album["release_date"]).year,
-            "n_tracks": len(album["tracks"]),
+            "n_tracks": n_tracks,
             "duration_seconds": album["duration_seconds"],
             "duration_minutes": duration_min,
             "duration_display": album["duration_display"],
             "total_words": total_words,
             "unique_words": summary["types"],
             "words_per_minute": total_words / duration_min,
-            "words_per_track": total_words / len(album["tracks"]),
+            "words_per_track": total_words / n_tracks,
             "ttr": summary["ttr"],
             "mattr": summary["mattr"],
             "guiraud_r": summary["guiraud_r"],
+            # Length-robust diversity checks that corroborate MATTR from the
+            # opposite direction (MTLD up / Yule's K down = more varied).
+            "mtld": summary["mtld"],
+            "yules_k": summary["yules_k"],
             "hapax_ratio": summary["hapax_ratio"],
             "mean_word_length": summary["mean_word_length"],
+            # Structural (line-level) measures of compression.
+            "line_count": summary["line_count"],
+            "lines_per_song": summary["line_count"] / n_tracks,
+            "mean_line_length": summary["mean_line_length"],
+            "refrain_ratio": summary["refrain_ratio"],
             # Video's literal definition: total / unique (mean repetition of a word).
             "repetition_index": total_words / summary["types"],
-            # Mean emotional valence of the album's words (AFINN, -5..+5).
-            "mean_valence": T.mean_valence(blob, valence_lexicon),
+            # Mean emotional valence of the album's words (AFINN, -5..+5), plus
+            # its spread/range so the report can read emotional dispersion, not
+            # just the (misleading) average.
+            "mean_valence": vstats["valence_mean"],
+            "valence_std": vstats["valence_std"],
+            "valence_range": vstats["valence_range"],
+            "valence_coverage": vstats["valence_coverage"],
         }
         total_pron = sum(pron.values()) or 1
         for k, v in pron.items():
@@ -185,7 +201,7 @@ def build_distinctive_table(root: Path | None = None, n: int = 8) -> pd.DataFram
 
     # Per-album token frequency maps, in release order.
     albums_meta = sorted(meta["albums"], key=lambda a: a["release_date"])
-    counts_by_album: list[tuple[dict, "object"]] = []
+    counts_by_album: list[tuple[dict, object]] = []
     for album in albums_meta:
         blob = "\n".join(by_key[_match_key(t)]["lyrics"] for t in album["tracks"])
         counts_by_album.append((album, T.word_counts(blob)))
@@ -204,6 +220,43 @@ def build_distinctive_table(root: Path | None = None, n: int = 8) -> pd.DataFram
             "words": ", ".join(w for w, _ in scored),
             "scored": scored,
         })
+    return pd.DataFrame(rows)
+
+
+def build_vocab_growth(root: Path | None = None) -> pd.DataFrame:
+    """Type-accumulation curve across the whole career, one row per canonical
+    track in release order.
+
+    Walking the discography chronologically and tokenizing each song in turn,
+    this tracks the cumulative total words and the cumulative count of *distinct*
+    words seen so far. The gap between the two curves -- how fast new vocabulary
+    keeps arriving -- is the "reaching for a wider vocabulary" claim made visible
+    at the level of the whole catalogue rather than per album.
+    """
+    root = root or repo_root()
+    meta = load_album_metadata(root)
+    corpus = load_corpus(root)
+
+    by_key: dict[str, dict] = {}
+    for song in corpus["songs"]:
+        by_key.setdefault(_match_key(song["title"]), song)
+
+    seen: set[str] = set()
+    cum_words = 0
+    rows = []
+    for album in sorted(meta["albums"], key=lambda a: a["release_date"]):
+        for track in album["tracks"]:
+            tokens = T.tokenize(by_key[_match_key(track)]["lyrics"])
+            cum_words += len(tokens)
+            seen.update(tokens)
+            rows.append({
+                "album": album["album"],
+                "album_no": album["album_no"],
+                "release_year": pd.Timestamp(album["release_date"]).year,
+                "title": track,
+                "cumulative_words": cum_words,
+                "cumulative_types": len(seen),
+            })
     return pd.DataFrame(rows)
 
 

@@ -105,3 +105,44 @@ def new_fig(width=8.2, height=4.8):
     fig, ax = plt.subplots(figsize=(width, height))
     style_axes(ax)
     return fig, ax
+
+
+# --- Shared colour ramp ----------------------------------------------------
+def sequential_cmap():
+    """The house single-hue blue ramp as a matplotlib colormap (light -> dark).
+
+    Centralised here so the 2D motif heatmap and the 3D figures draw ordered
+    magnitude from exactly the same ramp. Time -- the axis the whole project is
+    about -- is carried consistently by this ramp, early (light) to late (dark).
+    """
+    from matplotlib.colors import LinearSegmentedColormap
+
+    return LinearSegmentedColormap.from_list("mitski_blues", SEQUENTIAL)
+
+
+# --- 3D helpers ------------------------------------------------------------
+# The matplotlib 3D figures share the 2D theme so they sit in the report as one
+# visual system: same palette, same recessive grey chrome, marks carry the ink.
+def new_fig3d(width=8.4, height=6.6):
+    """A themed 3D figure/axes pair (mirrors ``new_fig`` for the 3D toolkit)."""
+    apply()
+    fig = plt.figure(figsize=(width, height))
+    ax = fig.add_subplot(projection="3d")
+    style_axes3d(ax)
+    return fig, ax
+
+
+def style_axes3d(ax) -> None:
+    """Recessive chrome for a 3D axes: faint panes, grey grid and tick/label
+    colours, so the data marks (not the box) carry the ink."""
+    pane = (1.0, 1.0, 1.0, 0.0)  # transparent panes -> the page shows through
+    for axis in (ax.xaxis, ax.yaxis, ax.zaxis):
+        axis.set_pane_color(pane)
+        axis.pane.set_edgecolor(GRID)
+        axis.pane.set_alpha(1.0)
+        # Grey, thin gridlines matching the 2D grid.
+        axis._axinfo["grid"].update(color=GRID, linewidth=0.7)
+        axis.line.set_color(BASELINE)
+        axis.label.set_color(INK_2)
+        axis.set_tick_params(colors=MUTED, labelsize=8)
+    ax.set_facecolor(SURFACE)

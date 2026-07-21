@@ -6,9 +6,11 @@ pandas>=2.0
 numpy>=1.24
 matplotlib>=3.7
 
-# Interactive 3D figures (src/mitski_analysis/figures3d.py, scripts/make_3d.py,
-# and the report's "Explore it in three dimensions" section).
-plotly>=5.20
+# 3D figures (src/mitski_analysis/figures3d.py, scripts/make_3d.py, and the
+# report's "Explore it in three dimensions" section) are pure matplotlib. Their
+# rotation-animation GIFs are written with matplotlib's PillowWriter, so Pillow
+# is required explicitly (it also ships as a matplotlib dependency).
+pillow>=10
 
 # For running the tests:
 pytest>=7.0

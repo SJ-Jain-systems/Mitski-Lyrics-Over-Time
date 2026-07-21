@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mitski-analysis"
+version = "0.2.0"
+description = "A data-driven reading of Mitski's discography (lyrics over time)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+dependencies = [
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "matplotlib>=3.7",
+    "pillow>=10",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.5",
+]
+
+# Console entry points mirror the scripts/ files, so `pip install -e .` gives you
+# `mitski-clean`, `mitski-build`, `mitski-figures`, `mitski-3d` on the PATH.
+[project.scripts]
+mitski-clean = "mitski_cli:clean_lyrics"
+mitski-build = "mitski_cli:build_dataset"
+mitski-figures = "mitski_cli:make_figures"
+mitski-3d = "mitski_cli:make_3d"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+py-modules = ["mitski_cli"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+# So `pytest` finds the package without the per-file sys.path shim.
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+# The scraper is a separate, self-contained stdlib-only tool with its own
+# requirements; it is not part of the analysis package and is linted on its own
+# terms.
+extend-exclude = ["scraper"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+# B905: zip(..., strict=) -- not worth retrofitting onto every fixed-length zip
+# in the figure code on a 3.10 baseline.
+ignore = ["B905"]
+# Scripts intentionally import after a sys.path shim (E402); the package itself
+# does not need that exception.
+[tool.ruff.lint.per-file-ignores]
+"scripts/*" = ["E402"]
+"tests/*" = ["E402"]
+"report/*" = ["E402"]

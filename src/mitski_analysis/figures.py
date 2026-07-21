@@ -10,9 +10,9 @@ chart (never a dual y-axis).
 
 from __future__ import annotations
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from matplotlib.patches import FancyArrowPatch
 
 from . import theme as TH
@@ -56,7 +56,6 @@ def fig_wpm_over_time(albums: pd.DataFrame):
                edgecolor=TH.SURFACE, linewidth=1.5)
 
     for _, row in albums.iterrows():
-        dy = 2.4 if row["album"] not in ("Retired from Sad, New Career in Business",) else 2.4
         ax.annotate(
             SHORT[row["album"]],
             (row["release_date"], row["words_per_minute"]),
@@ -183,14 +182,14 @@ def fig_pronoun_mix(albums: pd.DataFrame):
     fig, ax = TH.new_fig(9.0, 5.0)
     order = albums.sort_values("release_date")
     idx = np.arange(len(order))
-    I = order["pron_first_singular_share"].values
+    i_share = order["pron_first_singular_share"].values
     you = order["pron_second_share"].values
     we = order["pron_first_plural_share"].values
 
     colors = [TH.BLUE, TH.CATEGORICAL[3], TH.CATEGORICAL[5]]
     labels = ["I / me / my", "you / your", "we / us / our"]
     bottom = np.zeros(len(order))
-    for share, c, lab in zip([I, you, we], colors, labels):
+    for share, c, lab in zip([i_share, you, we], colors, labels):
         ax.bar(idx, share, bottom=bottom, width=0.66, color=c, label=lab,
                edgecolor=TH.SURFACE, linewidth=1.5)
         bottom = bottom + share
@@ -208,14 +207,12 @@ def fig_pronoun_mix(albums: pd.DataFrame):
 # 6. Motif heatmap: recurring imagery rates by album
 # --------------------------------------------------------------------------- #
 def fig_motif_heatmap(albums: pd.DataFrame):
-    from matplotlib.colors import LinearSegmentedColormap
-
     motifs = ["body", "water", "fire_light", "home_domestic", "death", "animals"]
     nice = ["Body", "Water", "Fire / light", "Home / domestic", "Death", "Animals"]
     order = albums.sort_values("release_date")
     M = np.array([[row[f"motif_{m}_per_1k"] for m in motifs] for _, row in order.iterrows()])
 
-    cmap = LinearSegmentedColormap.from_list("blues", TH.SEQUENTIAL)
+    cmap = TH.sequential_cmap()
     TH.apply()
     fig, ax = plt.subplots(figsize=(8.6, 5.4))
     im = ax.imshow(M, cmap=cmap, aspect="auto")
@@ -297,8 +294,10 @@ def fig_trilogy(albums: pd.DataFrame):
     ax.axis("off")
 
     panels = [
-        ("Be the Cowboy", TH.TRILOGY["Be the Cowboy"], "explosion of red\nstepping into a persona"),
-        ("Laurel Hell", TH.TRILOGY["Laurel Hell"], "the same frame, in black\nthe persona meets fame"),
+        ("Be the Cowboy", TH.TRILOGY["Be the Cowboy"],
+         "explosion of red\nstepping into a persona"),
+        ("Laurel Hell", TH.TRILOGY["Laurel Hell"],
+         "the same frame, in black\nthe persona meets fame"),
         ("The Land Is\nInhospitable…", TH.TRILOGY["The Land Is Inhospitable and So Are We"],
          "the camera pulls back\n“what world made this?”"),
     ]
@@ -316,4 +315,75 @@ def fig_trilogy(albums: pd.DataFrame):
     ax.text(1.5, 1.16, "One image, three times. Each album pulls the camera back",
             ha="center", va="center", fontsize=11, fontweight="bold", color=TH.INK)
     fig.tight_layout()
+    return fig
+
+
+# --------------------------------------------------------------------------- #
+# 9. Refrain reliance vs. word repetition (line-level echo of the repetition
+#    index): repeated lines are NOT a simple function of time -- they track how
+#    repetitive the *words* are, so The Land, the least repetitive album, also
+#    leans least on refrains.
+# --------------------------------------------------------------------------- #
+def fig_refrain_over_time(albums: pd.DataFrame):
+    fig, ax = TH.new_fig(9.0, 5.4)
+    x = albums["repetition_index"]
+    y = albums["refrain_ratio"] * 100
+
+    xs, ys, r = _fit_line(x, y)
+    ax.plot(xs, ys, color=TH.MUTED, lw=1.4, ls=(0, (4, 3)), zorder=1)
+
+    mature = albums["album_no"] >= 4
+    ax.scatter(x[~mature], y[~mature], s=90, color=TH.CATEGORICAL[4],
+               edgecolor=TH.SURFACE, linewidth=1.5, zorder=3, label="Early era (2012–14)")
+    ax.scatter(x[mature], y[mature], s=90, color=TH.BLUE,
+               edgecolor=TH.SURFACE, linewidth=1.5, zorder=3, label="Mature era (2016–23)")
+    for _, row in albums.iterrows():
+        ax.annotate(SHORT_INLINE[row["album"]],
+                    (row["repetition_index"], row["refrain_ratio"] * 100),
+                    textcoords="offset points", xytext=(8, 3), fontsize=8.2,
+                    color=TH.INK_2)
+
+    ax.set_xlabel("Repetition index  (total ÷ unique words)  →  more repetitive")
+    ax.set_ylabel("Repeated-line share  (% of lines that echo an earlier line)")
+    ax.set_title("Repeated lines track word repetition, not the calendar")
+    ax.legend(loc="lower right")
+    ax.annotate(f"r = {r:.2f}", xy=(0.02, 0.94), xycoords="axes fraction",
+                ha="left", va="top", fontsize=9.5, color=TH.MUTED)
+    return fig
+
+
+# --------------------------------------------------------------------------- #
+# 10. Vocabulary growth: the type-accumulation curve across the whole career
+# --------------------------------------------------------------------------- #
+def fig_vocab_growth(growth: pd.DataFrame, albums: pd.DataFrame):
+    """Cumulative distinct words vs. cumulative total words, song by song in
+    release order. ``growth`` is ``data.build_vocab_growth(...)``."""
+    fig, ax = TH.new_fig(9.0, 5.4)
+    order = albums.sort_values("release_date")["album"].tolist()
+    color_by_album = {a: TH.CATEGORICAL[i % len(TH.CATEGORICAL)]
+                      for i, a in enumerate(order)}
+
+    total = growth["cumulative_words"].to_numpy()
+    types = growth["cumulative_types"].to_numpy()
+
+    # One continuous curve, coloured by the album each song belongs to, so the
+    # eye can see whether new vocabulary keeps arriving in the late records.
+    for album in order:
+        mask = growth["album"] == album
+        ax.plot(total[mask], types[mask], color=color_by_album[album], lw=2.4,
+                solid_capstyle="round", zorder=3)
+    ax.scatter(total, types, s=12, color=TH.INK, alpha=0.25, zorder=2)
+
+    # Direct album labels at each album's last point, no legend.
+    for album in order:
+        sub = growth[growth["album"] == album]
+        last = sub.iloc[-1]
+        ax.annotate(SHORT_INLINE[album],
+                    (last["cumulative_words"], last["cumulative_types"]),
+                    textcoords="offset points", xytext=(6, -2), fontsize=7.8,
+                    color=color_by_album[album], va="center")
+
+    ax.set_xlabel("Cumulative words sung across the career")
+    ax.set_ylabel("Cumulative distinct words")
+    ax.set_title("Vocabulary keeps arriving: distinct words vs. total words, in release order")
     return fig

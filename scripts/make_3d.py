@@ -1,15 +1,24 @@
 #!/usr/bin/env python3
-"""Render the interactive 3D figures to standalone HTML under figures/3d/.
+"""Render the 3D figures to static PNGs and rotation-animation GIFs under
+``figures/3d/``.
 
-Each file is fully self-contained (the Plotly runtime is inlined), so it opens
-in any browser with no server and no network. The Quarto report imports the same
-``figures3d`` functions, so the report and these files render identical charts.
+These figures are pure-Python matplotlib (no Plotly / JavaScript). A static 3D
+render is a single camera angle, which can be hard to read for depth, so each
+chart is also written as a 360-degree rotation GIF (see ``figures3d.spin``). The
+Quarto report imports the same ``figures3d`` functions, so the report and these
+files render identical charts.
 
 Run from the repo root:  python scripts/make_3d.py
+Pass ``--no-gif`` to skip the (slower) rotation animations and write PNGs only.
 """
 
+import argparse
 import sys
 from pathlib import Path
+
+import matplotlib
+
+matplotlib.use("Agg")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
@@ -25,6 +34,11 @@ RENDERERS = {
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--no-gif", action="store_true",
+                        help="write PNGs only, skip the rotation animations")
+    args = parser.parse_args()
+
     root = repo_root()
     out = root / "figures" / "3d"
     out.mkdir(parents=True, exist_ok=True)
@@ -32,11 +46,14 @@ def main() -> None:
     songs = build_song_table(root)
 
     for name, fn in RENDERERS.items():
-        fig = fn(albums, songs)
-        path = out / f"{name}.html"
-        fig.write_html(str(path), include_plotlyjs=True, full_html=True,
-                       config={"displaylogo": False, "responsive": True})
-        print(f"Wrote {path}")
+        png = out / f"{name}.png"
+        fn(albums, songs).savefig(png)
+        print(f"Wrote {png}")
+        if not args.no_gif:
+            # Rebuild the figure for the animation (savefig above may finalise it).
+            gif = out / f"{name}.gif"
+            F3.spin(fn(albums, songs), gif)
+            print(f"Wrote {gif}")
 
 
 if __name__ == "__main__":
