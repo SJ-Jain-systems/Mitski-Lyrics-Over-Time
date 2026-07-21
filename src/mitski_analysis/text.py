@@ -18,8 +18,8 @@ import math
 import re
 import unicodedata
 from collections import Counter
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 # Word token: a run of letters, allowing internal straight apostrophes so
 # contractions ("don't", "i'm") stay single tokens. Curly apostrophes are
@@ -92,18 +92,111 @@ def mean_word_length(tokens: list[str]) -> float:
     return sum(len(t) for t in tokens) / len(tokens)
 
 
+def yules_k(tokens: list[str]) -> float:
+    """Yule's K (Yule, 1944): a length-robust *concentration* measure.
+
+    K is high when a text leans on a small set of words used often, low when
+    vocabulary is spread thin. Unlike a raw TTR it does not drift with length,
+    so it corroborates MATTR from the opposite direction (K falls as diversity
+    rises). Defined as ``1e4 * (sum_i i^2 * V_i - N) / N^2`` where ``V_i`` is the
+    number of word types occurring ``i`` times and ``N`` is the token count.
+    """
+    n = len(tokens)
+    if n == 0:
+        return 0.0
+    freqs = Counter(tokens)
+    # V_i: how many types occur exactly i times.
+    spectrum = Counter(freqs.values())
+    m2 = sum((i * i) * vi for i, vi in spectrum.items())
+    return 1e4 * (m2 - n) / (n * n)
+
+
+def mtld(tokens: list[str], threshold: float = 0.72) -> float:
+    """Measure of Textual Lexical Diversity (McCarthy & Jarvis, 2010).
+
+    MTLD is the mean length of the longest running-TTR "factors" that stay above
+    ``threshold`` before resetting, averaged over a forward and a backward pass.
+    It is the diversity measure most robust to text length, so it is the best
+    single check on the length-sensitive raw TTR. Returns the token count when
+    the text never drops below the threshold (maximally diverse for its length).
+    """
+    n = len(tokens)
+    if n == 0:
+        return 0.0
+
+    def _one_pass(seq: list[str]) -> float:
+        factors = 0.0
+        types: set[str] = set()
+        count = 0
+        for tok in seq:
+            count += 1
+            types.add(tok)
+            ttr = len(types) / count
+            if ttr <= threshold:
+                factors += 1.0
+                types.clear()
+                count = 0
+        if count > 0:
+            # Partial trailing factor, scaled by how far it fell toward the cut.
+            ttr = len(types) / count
+            factors += (1.0 - ttr) / (1.0 - threshold)
+        return len(seq) / factors if factors > 0 else float(len(seq))
+
+    return (_one_pass(tokens) + _one_pass(list(reversed(tokens)))) / 2.0
+
+
+def split_lines(text: str) -> list[str]:
+    """Non-empty, stripped lyric lines (blank lines and pure whitespace dropped)."""
+    return [ln.strip() for ln in text.splitlines() if ln.strip()]
+
+
+def line_summary(text: str) -> dict[str, float]:
+    """Structural, line-level metrics for one lyric blob.
+
+    ``mean_line_length`` is words per non-empty line; ``line_count`` is the number
+    of such lines; ``refrain_ratio`` is the share of lines that repeat a line seen
+    earlier (a transparent proxy for how much a lyric leans on a refrain -- it
+    rises on the compressed, hook-driven late songs like *Working for the Knife*).
+    """
+    lines = split_lines(text)
+    if not lines:
+        return {"line_count": 0, "mean_line_length": 0.0, "refrain_ratio": 0.0}
+    norm_lines = [" ".join(tokenize(ln)) for ln in lines]
+    word_counts_per_line = [len(nl.split()) for nl in norm_lines]
+    seen: set[str] = set()
+    repeats = 0
+    for nl in norm_lines:
+        if not nl:
+            continue
+        if nl in seen:
+            repeats += 1
+        else:
+            seen.add(nl)
+    n_lines = len(lines)
+    total_words = sum(word_counts_per_line) or 1
+    return {
+        "line_count": n_lines,
+        "mean_line_length": total_words / n_lines,
+        "refrain_ratio": repeats / n_lines,
+    }
+
+
 def lexical_summary(text: str, window: int = 50) -> dict[str, float]:
     """All scalar lexical metrics for one text blob, in one pass."""
     tokens = tokenize(text)
-    return {
+    summary = {
         "tokens": len(tokens),
         "types": len(set(tokens)),
         "ttr": type_token_ratio(tokens),
         "mattr": mattr(tokens, window=window),
         "guiraud_r": guiraud_r(tokens),
+        "mtld": mtld(tokens),
+        "yules_k": yules_k(tokens),
         "hapax_ratio": hapax_ratio(tokens),
         "mean_word_length": mean_word_length(tokens),
     }
+    summary.update(line_summary(text))
+    return summary
 
 
 # --- Thematic lexicons -----------------------------------------------------
@@ -302,3 +395,28 @@ def mean_valence(text: str, lexicon: dict[str, int]) -> float:
     if not scored:
         return 0.0
     return sum(scored) / len(scored)
+
+
+def valence_stats(text: str, lexicon: dict[str, int]) -> dict[str, float]:
+    """Mean, spread and range of word-level valence over the scored tokens.
+
+    The report's point is that *mean* valence misses Mitski's meaning; the spread
+    (``valence_std``) and ``valence_range`` add the missing dimension -- how far a
+    lyric swings between its brightest and darkest words, not just where it
+    averages. ``valence_coverage`` is the share of tokens the lexicon scored at
+    all, a caveat on how much of the text the sentiment number even sees. All
+    fields are 0.0 when no token is scored.
+    """
+    tokens = tokenize(text)
+    scored = [lexicon[t] for t in tokens if t in lexicon]
+    if not scored:
+        return {"valence_mean": 0.0, "valence_std": 0.0,
+                "valence_range": 0.0, "valence_coverage": 0.0}
+    mean = sum(scored) / len(scored)
+    var = sum((s - mean) ** 2 for s in scored) / len(scored)
+    return {
+        "valence_mean": mean,
+        "valence_std": math.sqrt(var),
+        "valence_range": float(max(scored) - min(scored)),
+        "valence_coverage": len(scored) / len(tokens) if tokens else 0.0,
+    }

@@ -1,5 +1,7 @@
 # Mitski, Over Time
 
+[![CI](https://github.com/sj-jain-systems/evolution-of-mitski/actions/workflows/ci.yml/badge.svg)](https://github.com/sj-jain-systems/evolution-of-mitski/actions/workflows/ci.yml)
+
 A data-driven reading of Mitski's discography. The project takes a claim from a
 short video essay, *"she is literally saying less over time… but it's not that
 simple"*, and tests it against the lyrics of all seven studio albums, then keeps
@@ -43,36 +45,50 @@ data/
   metadata/    albums.json                  # canonical tracklists, dates, durations (curated)
   lexicons/    valence_afinn.txt            # bundled AFINN sentiment lexicon (ODbL)
 src/mitski_analysis/
-  text.py      tokenizing + lexical/theme metrics (TTR, MATTR, motifs, pronouns,
-               distinctive-word keyness, AFINN valence)
-  data.py      joins lyrics <-> album metadata into tidy tables
-  theme.py     matplotlib theme (validated data-viz palette)
-  figures.py   the report's figures
-  figures3d.py interactive 3D figures (Plotly): the evolution trajectory,
-               the motif terrain, the per-song cloud, the pronoun trajectory
+  text.py      tokenizing + lexical/theme metrics (TTR, MATTR, MTLD, Yule's K,
+               line/refrain metrics, motifs, pronouns, distinctive-word keyness,
+               AFINN valence + dispersion)
+  data.py      joins lyrics <-> album metadata into tidy tables (+ vocab-growth)
+  stats.py     bootstrap confidence intervals for the report's correlations
+  theme.py     matplotlib theme (validated data-viz palette), incl. 3D helpers
+  figures.py   the report's 2D figures (matplotlib)
+  figures3d.py the 3D figures (matplotlib): the evolution trajectory, the motif
+               terrain, the per-song cloud, the pronoun trajectory
 scripts/
   clean_lyrics.py     raw scrape -> cleaned lyrics
   build_dataset.py    -> data/processed/*.csv
   make_figures.py     -> figures/*.png
-  make_3d.py          -> figures/3d/*.html  (standalone, interactive)
+  make_3d.py          -> figures/3d/*.png + *.gif  (static render + rotation)
 report/
   mitski_lyrics_over_time.qmd   # the report
 tests/         unit + integration tests
 ```
 
+Everything is **pure Python** (no JavaScript). The 3D figures used to be Plotly
+(which renders as an inlined `plotly.js` runtime); they are now matplotlib. A
+static 3D render is a single camera angle, so each 3D chart is also written as a
+360-degree **rotation GIF** to recover the depth the old drag-to-rotate gave.
+The only step that still needs a non-pip tool is rendering the report, which
+uses the Quarto CLI.
+
 ## Reproduce
 
 ```bash
-pip install -r requirements.txt
+pip install -e .                          # editable install (or: pip install -r requirements.txt)
 python scripts/clean_lyrics.py            # (already committed; regenerates cleaned lyrics)
-python scripts/build_dataset.py           # album + song stats
-python scripts/make_figures.py            # preview figures (static PNG)
-python scripts/make_3d.py                 # interactive 3D figures -> figures/3d/*.html
+python scripts/build_dataset.py           # album + song stats -> data/processed/*.csv
+python scripts/make_figures.py            # 2D figures (static PNG) -> figures/*.png
+python scripts/make_3d.py                 # 3D figures -> figures/3d/*.png + *.gif
 python -m pytest tests/                    # tests
 
 # Render the report (needs the Quarto CLI from quarto.org + a Jupyter kernel):
 quarto render report/mitski_lyrics_over_time.qmd
 ```
+
+With the editable install the same steps are available as `make data`,
+`make figures`, `make viz3d`, `make test`, and `make report` (see the
+`Makefile`), and as the console scripts `mitski-build`, `mitski-figures`,
+`mitski-3d`. `make_3d.py --no-gif` skips the (slower) rotation animations.
 
 ## Notes on the data
 

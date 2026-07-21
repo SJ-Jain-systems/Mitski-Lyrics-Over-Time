@@ -47,11 +47,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from mitski_analysis import figures as F
-from mitski_analysis.data import build_album_table, build_song_table, build_distinctive_table
+from mitski_analysis import stats as ST
+from mitski_analysis.data import (
+    build_album_table, build_distinctive_table, build_song_table, build_vocab_growth,
+)
 
 albums = build_album_table(_root)
 songs = build_song_table(_root)
 distinctive = build_distinctive_table(_root)
+growth = build_vocab_growth(_root)
 
 def r(x, y):
     return float(np.corrcoef(albums[x], albums[y])[0, 1])
@@ -68,6 +72,13 @@ def valence_of(prefix):
 mature = albums[albums["album_no"] >= 4]
 r_mature = float(np.corrcoef(mature["words_per_minute"], mature["repetition_index"])[0, 1])
 the_land = album_row("The Land")
+
+# Correlations across only seven albums deserve an uncertainty band. ``ci``
+# returns "r = .. (95% CI .. to ..)" from a percentile bootstrap so the report
+# never states a bare r on n = 7 (see src/mitski_analysis/stats.py).
+def ci(xcol, ycol, frame=None):
+    frame = albums if frame is None else frame
+    return str(ST.bootstrap_r(frame[xcol], frame[ycol]))
 ```
 
 > *"I took every Mitski album and I grabbed the duration and the number of words
@@ -168,7 +179,8 @@ plt.show()
 ```
 
 The density of Mitski's lyrics falls across her career. The correlation between
-release year and words per minute is **r = `{python} round(r_year("words_per_minute"), 2)`**.
+release year and words per minute is **`{python} ci("release_year", "words_per_minute")`**
+(seven albums, so the interval is wide, but the whole band is negative).
 The two self-released early records, *Lush* and *Retired from Sad, New Career in
 Business*, are the wordiest and the busiest. *Retired* is the densest album she
 has made, at 69 words a minute. From *Puberty 2* onward the decline is almost
@@ -219,14 +231,41 @@ plt.show()
 ```
 
 Across all seven albums, denser records are more repetitive
-(r = `{python} round(r("words_per_minute", "repetition_index"), 2)`). Restrict
+(`{python} ci("words_per_minute", "repetition_index")`). Restrict
 the view to the mature era, *Puberty 2* forward, where she is a fully formed
 writer, and the relationship becomes nearly deterministic:
-**r = `{python} round(r_mature, 2)`** between words per minute and repetition.
+**`{python} ci("words_per_minute", "repetition_index", mature)`** between words
+per minute and repetition.
 *The Land* sits by itself in the bottom-left corner. It has the fewest words per
 minute and the least repetition of anything she has released. When Mitski uses
 the least, each word has to do the most, so she reaches for a wider vocabulary to
 say it.
+
+The line-level picture agrees. When a song leans on a refrain, the same line
+recurs, so the share of repeated lines is a structural cousin of the word-level
+repetition index — and the two move together
+(`{python} ci("repetition_index", "refrain_ratio")`). The persona-era records
+lean hardest on the refrain; *The Land* leans least of all, repetitive neither in
+its words nor in its lines.
+
+```{python}
+#| label: fig-refrain
+#| fig-cap: "Repeated-line share against the word-level repetition index. Two measures of repetition, one story: The Land is lowest on both."
+F.fig_refrain_over_time(albums)
+plt.show()
+```
+
+And the widening vocabulary is not an artefact of where the album lines fall.
+Laid end to end in release order, the running count of *distinct* words keeps
+climbing almost as fast as the total word count: new vocabulary keeps arriving
+right through the sparse late records rather than tailing off.
+
+```{python}
+#| label: fig-vocab
+#| fig-cap: "Cumulative distinct words vs. cumulative total words, song by song across the career."
+F.fig_vocab_growth(growth, albums)
+plt.show()
+```
 
 # Finding 3: the songs themselves are thinning {#sec-songs}
 
@@ -459,11 +498,12 @@ Put the pieces together and the video's thesis resolves into something the data
 supports:
 
 - Mitski's lyrics have grown **less dense** over her career
-  (r = `{python} round(r_year("words_per_minute"), 2)` against time), and the
+  (`{python} ci("release_year", "words_per_minute")` against time), and the
   **songs themselves are shorter**.
 - The words that remain are **less repetitive and more varied**, most sharply in
-  her mature era (density against repetition, r = `{python} round(r_mature, 2)`),
-  with *The Land* the extreme case on both axes.
+  her mature era (density against repetition,
+  `{python} ci("words_per_minute", "repetition_index", mature)`), with *The Land*
+  the extreme case on both axes.
 - The vocabulary each album is built from moves with her subject matter, from the
   underwater self-image of *Lush* to the possession and mortality of *The Land*.
 - The **collective "we"** and the imagery of **death** both rise on exactly the
@@ -478,11 +518,11 @@ says to carry more.
 
 The findings above each isolate one relationship at a time, on a flat page. But
 the story is really about several axes moving together — density, diversity,
-repetition, imagery, address — so the last word goes to the reader. The figures
-below are **interactive**: drag to rotate, scroll to zoom, hover for values. A
-third spatial axis only helps if you can turn it, so these render as live plots
-rather than frozen pictures. (In the static PDF they appear as a single camera
-angle; open the HTML version to rotate them.)
+repetition, imagery, address — so the last word is three-dimensional. Each figure
+below is a pure-Python (matplotlib) 3D render, composed from an angle chosen to
+read clearly. Because a single camera angle can hide depth, `scripts/make_3d.py`
+also writes a 360-degree **rotation** of each chart to `figures/3d/*.gif`; run it
+to spin these on your own screen.
 
 ```{python}
 #| label: setup-3d
@@ -498,7 +538,9 @@ into the tight density–repetition track the scatter above only hints at.
 
 ```{python}
 #| label: fig3d-trajectory
+#| fig-cap: "The discography as one path through lyric space: density (x), diversity (y), and repetition (z), coloured light-to-dark from first album to latest."
 F3.fig3d_trajectory(albums)
+plt.show()
 ```
 
 The **recurring imagery as terrain**: the same rates as the heatmap, but with
@@ -507,7 +549,9 @@ the late, sparse albums read as landscape.
 
 ```{python}
 #| label: fig3d-terrain
+#| fig-cap: "The motif rates as terrain: height is imagery per 1,000 words, so the ridges rise where a motif is dense."
 F3.fig3d_motif_terrain(albums)
+plt.show()
 ```
 
 Every **individual song** in three dimensions — words, lexical diversity, and
@@ -516,7 +560,9 @@ and watch how tightly (or loosely) each record's songs cluster.
 
 ```{python}
 #| label: fig3d-cloud
+#| fig-cap: "Every canonical track in words × diversity × mean-word-length space, coloured by album, so each record's cluster is visible."
 F3.fig3d_song_cloud(songs, albums)
+plt.show()
 ```
 
 Finally, **who the songs address**, as a path over time through the shares of
@@ -525,7 +571,9 @@ on exactly the late records where she pulls the camera back.
 
 ```{python}
 #| label: fig3d-pronouns
+#| fig-cap: "The pronoun mix as a path over time through the shares of I, you, and we, coloured light-to-dark by release year."
 F3.fig3d_pronoun_trajectory(albums)
+plt.show()
 ```
 
 # Limitations {#sec-limits}
@@ -554,11 +602,12 @@ F3.fig3d_pronoun_trajectory(albums)
 # Reproduce this report {#sec-repro}
 
 ```bash
-pip install -r requirements.txt          # pandas, matplotlib, numpy (+ quarto)
+pip install -e .                         # pandas, numpy, matplotlib, pillow (pure Python)
 python scripts/clean_lyrics.py           # raw scrape -> cleaned lyrics
 python scripts/build_dataset.py          # -> data/processed/album_stats.csv, song_stats.csv
-python scripts/make_figures.py           # -> figures/*.png (preview)
-quarto render report/mitski_lyrics_over_time.qmd   # this document
+python scripts/make_figures.py           # -> figures/*.png (2D)
+python scripts/make_3d.py                # -> figures/3d/*.png + *.gif (3D + rotation)
+quarto render report/mitski_lyrics_over_time.qmd   # this document (needs the Quarto CLI)
 ```
 
 Every figure and every number above is generated from the committed data files by

@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install (editable + dev tools)
+        run: python -m pip install -e .[dev]
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Tests
+        run: python -m pytest -q
+
+      # Prove the whole pipeline builds headlessly (no Quarto CLI in CI). The 3D
+      # step skips the slow rotation GIFs; PNG rendering is enough to catch
+      # breakage.
+      - name: Build data + figures
+        run: |
+          python scripts/build_dataset.py
+          python scripts/make_figures.py
+          python scripts/make_3d.py --no-gif

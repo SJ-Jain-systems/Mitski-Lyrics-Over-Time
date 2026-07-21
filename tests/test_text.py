@@ -62,9 +62,61 @@ def test_motif_counts():
 
 def test_lexical_summary_keys():
     s = T.lexical_summary("a b a b c")
-    assert set(s) >= {"tokens", "types", "ttr", "mattr", "guiraud_r",
-                      "hapax_ratio", "mean_word_length"}
+    assert set(s) >= {"tokens", "types", "ttr", "mattr", "guiraud_r", "mtld",
+                      "yules_k", "hapax_ratio", "mean_word_length",
+                      "line_count", "mean_line_length", "refrain_ratio"}
     assert s["tokens"] == 5 and s["types"] == 3
+
+
+# --- new diversity / structure / valence metrics ---------------------------
+
+def test_yules_k_zero_for_all_unique():
+    # No word repeats -> concentration K is 0.
+    assert abs(T.yules_k(["a", "b", "c", "d"])) < 1e-9
+    # A heavily repeated text concentrates -> K well above 0.
+    assert T.yules_k(["a"] * 10 + ["b"]) > T.yules_k(list("abcdefghij"))
+    assert T.yules_k([]) == 0.0
+
+
+def test_mtld_higher_for_more_varied_text():
+    varied = ("the quick brown fox jumps over the lazy dog and runs far "
+              "beyond every green hill").split()
+    repetitive = ["yeah", "yeah", "no", "no"] * 6
+    assert T.mtld(varied) > T.mtld(repetitive)
+    assert T.mtld([]) == 0.0
+
+
+def test_split_lines_drops_blanks():
+    assert T.split_lines("one\n\n  \ntwo\n") == ["one", "two"]
+
+
+def test_line_summary_refrain_ratio_counts_repeats():
+    text = "hold me now\nhold me now\nlet me go\nhold me now"
+    s = T.line_summary(text)
+    assert s["line_count"] == 4
+    # Two of the four lines echo an earlier line (the first "hold me now" does not).
+    assert abs(s["refrain_ratio"] - 2 / 4) < 1e-9
+    # "hold me now" and "let me go" are both three words.
+    assert abs(s["mean_line_length"] - 3.0) < 1e-9
+
+
+def test_line_summary_empty_is_safe():
+    s = T.line_summary("   \n  \n")
+    assert s == {"line_count": 0, "mean_line_length": 0.0, "refrain_ratio": 0.0}
+
+
+def test_valence_stats_spread_and_range():
+    lex = {"love": 3, "hate": -3, "ok": 1}
+    s = T.valence_stats("love hate ok unscored", lex)
+    assert s["valence_range"] == 6.0            # +3 to -3
+    assert s["valence_std"] > 0
+    assert 0 < s["valence_coverage"] < 1        # "unscored" is not in the lexicon
+
+
+def test_valence_stats_empty_is_zeroed():
+    s = T.valence_stats("nothing scored here", {"love": 3})
+    assert s == {"valence_mean": 0.0, "valence_std": 0.0,
+                 "valence_range": 0.0, "valence_coverage": 0.0}
 
 
 # --- distinctive words -----------------------------------------------------
