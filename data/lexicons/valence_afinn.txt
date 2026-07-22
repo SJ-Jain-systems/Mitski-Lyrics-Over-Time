@@ -4,7 +4,7 @@
 # to +5 (most positive). Used by src/mitski_analysis/text.py:mean_valence to
 # score the average sentiment of each album's lyrics.
 #
-# Source:  AFINN word list, version 111 (2477 entries)
+# Source:  AFINN word list, version 111 (2477 entries in the original)
 # Author:  Finn Arup Nielsen
 # Cite:    Finn Arup Nielsen, "A new ANEW: Evaluation of a word list for
 #          sentiment analysis in microblogs", Proceedings of the ESWC2011
@@ -14,6 +14,12 @@
 #
 # Format:  one entry per line, "word<TAB>score". Lines starting with "#" and
 #          blank lines are ignored by the loader.
+#
+# Note:    15 identity-based slurs and hate-speech terms from the original
+#          AFINN-111 list have been removed. None of them occur anywhere in the
+#          Mitski corpus, so their removal does not change any valence score
+#          (mean_valence only counts tokens present in the lyrics); it simply
+#          keeps this bundled data file free of gratuitous slurs.
 abandon	-2
 abandoned	-2
 abandons	-2
@@ -283,8 +289,6 @@ better	2
 bias	-1
 biased	-2
 big	1
-bitch	-5
-bitches	-5
 bitter	-2
 bitterly	-2
 bizarre	-2
@@ -433,8 +437,6 @@ clever	2
 clouded	-1
 clueless	-2
 cock	-5
-cocksucker	-5
-cocksuckers	-5
 cocky	-2
 coerced	-2
 collapse	-2
@@ -555,7 +557,6 @@ crushes	-1
 crushing	-1
 cry	-1
 crying	-2
-cunt	-5
 curious	1
 curse	-1
 cut	-1
@@ -945,9 +946,6 @@ exultant	3
 exultantly	3
 fabulous	4
 fad	-2
-fag	-3
-faggot	-3
-faggots	-3
 fail	-2
 failed	-2
 failing	-2
@@ -1616,8 +1614,6 @@ nervous	-2
 nervously	-2
 nice	3
 nifty	2
-niggas	-5
-nigger	-5
 no	-1
 no fun	-3
 noble	2
@@ -1919,8 +1915,6 @@ restricting	-2
 restriction	-2
 restricts	-2
 retained	-1
-retard	-2
-retarded	-2
 retreat	-1
 revenge	-2
 revengeful	-2
@@ -2061,7 +2055,6 @@ slick	2
 slicker	2
 slickest	2
 sluggish	-2
-slut	-5
 smart	1
 smarter	2
 smartest	2
@@ -2297,7 +2290,6 @@ true	2
 trust	1
 trusted	2
 tumor	-2
-twat	-5
 ugly	-3
 unacceptable	-2
 unappreciated	-2
@@ -2438,7 +2430,6 @@ welcomed	2
 welcomes	2
 whimsical	1
 whitewash	-3
-whore	-4
 wicked	-2
 widowed	-1
 willingness	2
